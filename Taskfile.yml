@@ -1,0 +1,83 @@
+version: '3'
+
+env:
+  GO_MOD: eventbus
+  APP_NAME: eventbus
+  FULL_SRC_PATH: '{{.GO_MOD}}/cmd'
+  BIN_DIR: bin
+  BUILD_FLAGS: -ldflags="-s -w"
+  COV_FILE: coverage.out
+
+tasks:
+  bin-deps:
+    cmds:
+      - GOBIN=$(pwd)/bin go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - GOBIN=$(pwd)/bin go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+  default:
+    desc: Run the application
+    cmds:
+      - task: build
+      - ./{{.BIN_DIR}}/
+
+  serve:
+    desc: Build and run the gRPC server using ./config/config.yaml
+    cmds:
+      - task: build
+      - ./{{.BIN_DIR}}/{{.APP_NAME}} --config-dir=./config
+
+  build:
+    desc: Build binary
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build {{.BUILD_FLAGS}} -o {{.BIN_DIR}}/{{.APP_NAME}} {{.FULL_SRC_PATH}}
+
+  coverage:
+    desc: Run all tests with coverage
+    cmds:
+      - go test -coverprofile={{.COV_FILE}} ./internal/...
+      - go tool cover -func={{.COV_FILE}}
+
+  clean:
+    desc: Clean build artifacts and coverage files
+    cmds:
+      - rm -rf {{.BIN_DIR}}
+      - rm {{.COV_FILE}}
+      - go clean
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./internal/...
+  
+  e2e:
+    desc: Run e2e tests
+    cmds:
+      - go test ./e2e -v -timeout 10s
+
+  mod:
+    desc: Tidy Go modules
+    cmds:
+      - go mod tidy
+
+  grpc:
+    desc: Generate pb
+    vars:
+      proto_files:
+        sh: find proto -type f -name "*.proto" | xargs echo
+
+    cmds:
+      - rm -rf internal/generated/
+      - for: { var: proto_files }
+        cmd: >
+          protoc
+          --plugin=protoc-gen-go=$(pwd)/bin/protoc-gen-go
+          --plugin=protoc-gen-go-grpc=$(pwd)/bin/protoc-gen-go-grpc
+          --experimental_allow_proto3_optional
+          --go_out . --go-grpc_out .
+          {{.ITEM}}
+
+  help:
+    desc: Show help
+    cmds:
+      - task --list-all
