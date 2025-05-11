@@ -1,6 +1,6 @@
 app_name: eventbus
-app_port: 50052
+app_port:
 buffer_size: 100
 shutdown_timeout: 10s
-log_format: json      #or console
+log_format: json      #или console
 log_file: logs.json
